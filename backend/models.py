@@ -16,3 +16,19 @@ class ChatResponse(BaseModel):
 class UploadResponse(BaseModel):
     filename: str
     status: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class UserListResponse(BaseModel):
+    users: List[UserResponse]
+
+
+class UserRoleUpdate(BaseModel):
+    role: str

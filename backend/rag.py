@@ -173,7 +173,14 @@ async def get_compiled_app():
 
 
 # --- Helper Functions for Ingestion ---
-def ingest_document(file_path: str, session_id: str = None, scope: str = "global"):
+def ingest_document(
+    file_path: str,
+    session_id: str = None,
+    scope: str = "global",
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+    doc_id: int = None,
+):
     """Ingests a document into the vector store."""
     ext = os.path.splitext(file_path)[1].lower()
 
@@ -191,7 +198,9 @@ def ingest_document(file_path: str, session_id: str = None, scope: str = "global
 
     docs = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
     splits = splitter.split_documents(docs)
 
     # Add metadata for isolation
@@ -202,8 +211,41 @@ def ingest_document(file_path: str, session_id: str = None, scope: str = "global
         else:
             split.metadata["session_id"] = "global"
 
+        if doc_id:
+            split.metadata["doc_id"] = doc_id
+
     vector_store.add_documents(documents=splits)
     return len(splits)
+
+
+def delete_document_from_chroma(doc_id: int):
+    """Deletes all chunks associated with a specific document ID."""
+    try:
+        # Chroma filter for doc_id
+        result = vector_store.get(where={"doc_id": doc_id})
+        ids_to_delete = result["ids"]
+        if ids_to_delete:
+            vector_store.delete(ids=ids_to_delete)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error deleting document {doc_id} from Chroma: {e}")
+        return False
+
+
+def get_document_chunks(doc_id: int):
+    """Retrieves chunks for a specific document ID."""
+    try:
+        result = vector_store.get(
+            where={"doc_id": doc_id}, include=["documents", "metadatas"]
+        )
+        chunks = []
+        for i, text in enumerate(result["documents"]):
+            chunks.append({"content": text, "metadata": result["metadatas"][i]})
+        return chunks
+    except Exception as e:
+        print(f"Error getting chunks for document {doc_id}: {e}")
+        return []
 
 
 async def query_rag(

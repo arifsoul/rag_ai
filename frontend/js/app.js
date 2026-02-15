@@ -16,8 +16,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let mediaRecorder = null;
     let audioChunks = [];
     let attachedFiles = []; // Store files to be uploaded
-    let chatSessions = JSON.parse(localStorage.getItem('chat_sessions') || '{}');
+
+    // User Context for Storage Isolation
+    const currentUser = localStorage.getItem('username');
+    const userRole = localStorage.getItem('user_role');
+    const storageKey = currentUser ? `chat_sessions_${currentUser}` : 'chat_sessions_guest';
+    const sessionIdKey = currentUser ? `current_session_id_${currentUser}` : 'current_session_id_guest';
+
+    let chatSessions = JSON.parse(localStorage.getItem(storageKey) || '{}');
     let abortController = null; // For stopping generation
+
+    // Helper to save sessions
+    function saveSessions() {
+        localStorage.setItem(storageKey, JSON.stringify(chatSessions));
+    }
 
 
     // Theme (keep existing logic)
@@ -28,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Session (New Logic)
-    let currentSessionId = localStorage.getItem('current_session_id');
+    let currentSessionId = localStorage.getItem(sessionIdKey);
 
     // Sidebar Elements
     const historySidebar = document.getElementById('historySidebar');
@@ -38,16 +50,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const newChatBtn = document.getElementById('newChatBtn');
     const fileChips = document.getElementById('fileChips');
 
-    if (!currentSessionId) {
-        createNewSession();
-    } else {
-        // Ensure session exists in list (migration)
-        if (!chatSessions[currentSessionId]) {
-            chatSessions[currentSessionId] = { id: currentSessionId, title: "New Chat", timestamp: Date.now() };
-            saveSessions();
+    // Validate session ownership and existence
+    if (currentSessionId && !chatSessions[currentSessionId]) {
+        // Session ID exists but not in user's sessions - either orphaned or belongs to another user
+        // Clear it and create fresh
+        localStorage.removeItem(sessionIdKey);
+        currentSessionId = null;
+    }
+
+    // If no currentSessionId, try to use the most recent session from history
+    if (!currentSessionId && Object.keys(chatSessions).length > 0) {
+        const sortedSessions = Object.values(chatSessions).sort((a, b) => b.timestamp - a.timestamp);
+        if (sortedSessions.length > 0) {
+            currentSessionId = sortedSessions[0].id;
+            localStorage.setItem(sessionIdKey, currentSessionId);
         }
+    }
+
+    // Load session history if we have a valid session
+    if (currentSessionId) {
         loadSessionHistory(currentSessionId);
     }
+    // If no session at all, just show welcome screen - don't auto-create
+
     renderSessionList();
 
     // --- Initialization ---
@@ -98,12 +123,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Audio Functions ---
-    function speak(text) {
-        window.speechSynthesis.cancel();
+    let currentSpeakingButton = null;
+
+    function speak(text, btn) {
+        // If currently speaking
+        if (window.speechSynthesis.speaking) {
+            // If clicked the same button, stop and reset
+            if (currentSpeakingButton === btn) {
+                window.speechSynthesis.cancel();
+                resetSpeakingButton();
+                return;
+            } else {
+                // If clicked a different button, stop previous and continue to start new
+                window.speechSynthesis.cancel();
+                resetSpeakingButton();
+            }
+        }
+
+        // Start new speech
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'id-ID';
-        // utterance.rate = 1.1;
+
+        // Setup visual state
+        currentSpeakingButton = btn;
+        if (btn) {
+            // Change icon to Square (Stop)
+            const icon = btn.querySelector('i') || btn.querySelector('svg'); // Lucide might replace <i> with <svg>
+            if (icon) {
+                // We can't easily change lucide icon class after render without re-calling createIcons or manipulating SVG
+                // Easiest is to replace innerHTML
+                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4 fill-current text-red-500"></i>';
+                lucide.createIcons();
+            }
+        }
+
+        utterance.onend = () => {
+            resetSpeakingButton();
+        };
+
+        utterance.onerror = () => {
+            resetSpeakingButton();
+        };
+
         window.speechSynthesis.speak(utterance);
+    }
+
+    function resetSpeakingButton() {
+        if (currentSpeakingButton) {
+            // Revert icon to Volume-2
+            currentSpeakingButton.innerHTML = '<i data-lucide="volume-2" class="w-4 h-4"></i>';
+            lucide.createIcons();
+            currentSpeakingButton = null;
+        }
     }
 
     async function startRecording() {
@@ -263,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ttsBtn.className = "absolute -bottom-6 left-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity p-1 cursor-pointer";
             ttsBtn.innerHTML = '<i data-lucide="volume-2" class="w-4 h-4"></i>';
             ttsBtn.title = "Read Aloud";
-            ttsBtn.onclick = () => speak(content.textContent);
+            ttsBtn.onclick = function () { speak(content.textContent, this); };
             content.appendChild(ttsBtn);
         }
 
@@ -329,6 +400,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // If no session exists, create one now (lazy creation on first message)
+        if (!currentSessionId) {
+            createNewSession();
+        }
+
         console.log('sendMessage: Starting with text:', text, 'files:', attachedFiles.length);
 
         // If files attached, upload them first
@@ -345,7 +421,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formData = new FormData();
                     formData.append('file', file);
                     formData.append('session_id', currentSessionId); // Add session ID scope
-                    await fetch('/api/upload', { method: 'POST', body: formData });
+                    const token = localStorage.getItem('access_token');
+                    const headers = {};
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+
+                    await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData,
+                        headers: headers
+                    });
                 } catch (e) {
                     console.error("Upload failed for", file.name);
                 }
@@ -357,9 +443,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (toast) toast.classList.add('opacity-0', 'translate-y-4');
         }
 
-        // Update session title if it's "New Chat"
-        if (chatSessions[currentSessionId] && chatSessions[currentSessionId].title === "New Chat" && text) {
-            chatSessions[currentSessionId].title = text.substring(0, 30) + (text.length > 30 ? '...' : '');
+        // Update session title and timestamp
+        if (chatSessions[currentSessionId]) {
+            if (chatSessions[currentSessionId].title === "New Chat" && text) {
+                chatSessions[currentSessionId].title = text.substring(0, 30) + (text.length > 30 ? '...' : '');
+            }
+            chatSessions[currentSessionId].timestamp = Date.now();
             saveSessions();
             renderSessionList();
         }
@@ -381,18 +470,30 @@ document.addEventListener('DOMContentLoaded', () => {
         abortController = new AbortController();
 
         try {
+            const token = localStorage.getItem('access_token');
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
             const response = await fetch('/api/chat', {
                 signal: abortController.signal,
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({
                     message: text,
                     session_id: currentSessionId,
                     model: model
                 })
             });
+
+            if (response.status === 401 || response.status === 403) {
+                aiMessageContent.textContent = "Error: Unauthorized. Please log in again.";
+                // Optional: redirect to login
+                return;
+            }
 
             if (!response.ok) {
                 aiMessageContent.textContent = "Error: Failed to get response.";
@@ -423,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const ttsBtn = document.createElement('button');
             ttsBtn.className = "absolute -bottom-6 left-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity p-1 cursor-pointer";
             ttsBtn.innerHTML = '<i data-lucide="volume-2" class="w-4 h-4"></i>';
-            ttsBtn.onclick = () => speak(aiMessageContent.textContent);
+            ttsBtn.onclick = function () { speak(aiMessageContent.textContent, this); };
             aiMessageContent.appendChild(ttsBtn);
             lucide.createIcons();
 
@@ -531,34 +632,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Session Functions ---
     function saveSessions() {
-        localStorage.setItem('chat_sessions', JSON.stringify(chatSessions));
+        localStorage.setItem(storageKey, JSON.stringify(chatSessions));
         renderSessionList();
     }
 
     function createNewSession() {
-        const id = crypto.randomUUID();
-        const session = {
-            id: id,
+        const sessionId = Date.now().toString();
+        chatSessions[sessionId] = {
+            id: sessionId,
             title: "New Chat",
             timestamp: Date.now()
         };
-        chatSessions[id] = session;
-        currentSessionId = id;
-        localStorage.setItem('current_session_id', id);
-
-        // Clear UI
-        chatContainer.querySelector('.max-w-5xl').innerHTML = '';
         saveSessions();
+        currentSessionId = sessionId;
+        localStorage.setItem(sessionIdKey, currentSessionId);
+        loadSessionHistory(sessionId);
+        renderSessionList();
 
-        // Show welcome only for new chat
-        // (Simplified: just clear messages, existing welcome msg logic might need tweak but it's hidden by CSS usually if messages exist)
-        // Actually, we should restore Welcome message if empty.
-        // For now, let's just reload page or handle it purely UI
+        // Reset inputs
+        if (messageInput) messageInput.value = '';
+        if (fileChips) fileChips.innerHTML = '';
+        attachedFiles = [];
+        // update active state in sidebar handled by renderSessionList
     }
 
     async function loadSessionHistory(id) {
         currentSessionId = id;
-        localStorage.setItem('current_session_id', id);
+        localStorage.setItem(sessionIdKey, id);
 
         // Clear current messages
         const container = chatContainer.querySelector('.max-w-5xl');
@@ -566,7 +666,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch history
         try {
-            const res = await fetch(`/api/history/${id}`);
+            const token = localStorage.getItem('access_token');
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const res = await fetch(`/api/history/${id}`, { headers });
             const data = await res.json();
 
             if (data.history && data.history.length > 0) {
@@ -596,9 +702,15 @@ document.addEventListener('DOMContentLoaded', () => {
         sortedSessions.forEach(session => {
             const btn = document.createElement('button');
             btn.className = `w-full text-left p-3 rounded-xl transition-all mb-1 flex items-center gap-3 ${session.id === currentSessionId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`;
+            const date = new Date(session.timestamp || Date.now());
+            const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
             btn.innerHTML = `
-                <i data-lucide="message-square" class="w-4 h-4 shrink-0"></i>
-                <span class="truncate text-sm flex-1 text-left">${session.title}</span>
+                <i data-lucide="message-square" class="w-4 h-4 shrink-0 text-gray-500"></i>
+                <div class="flex-1 min-w-0">
+                    <div class="truncate text-sm font-medium text-left">${session.title}</div>
+                    <div class="text-xs text-gray-400 text-left">${dateStr}</div>
+                </div>
             `;
 
             // Delete Button
@@ -680,7 +792,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Backend delete
         try {
-            await fetch(`/api/history/${id}`, { method: 'DELETE' });
+            const token = localStorage.getItem('access_token');
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            await fetch(`/api/history/${id}`, { method: 'DELETE', headers });
         } catch (e) {
             console.error("Failed to delete session on backend", e);
         }
@@ -763,104 +880,520 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Admin Dashboard Logic ---
     const adminModal = document.getElementById('adminModal');
     const adminModalBtn = document.getElementById('adminModalBtn');
-    const userRole = localStorage.getItem('user_role');
+    // userRole and currentUser already defined at top scope
 
     // Show Admin Button if authorized
     if (userRole === 'admin' || userRole === 'superadmin') {
         if (adminModalBtn) {
             adminModalBtn.classList.remove('hidden');
-            adminModalBtn.addEventListener('click', () => toggleAdminModal(true));
+            adminModalBtn.addEventListener('click', () => {
+                toggleAdminModal(true);
+                // Default to Ingestion tab
+                switchAdminTab('ingestion');
+            });
         }
 
-        // Show Superadmin specific section
-        if (userRole === 'superadmin') {
-            const adminMgmt = document.getElementById('adminManagement');
-            if (adminMgmt) adminMgmt.classList.remove('hidden');
-        }
+        // Show Users Tab for Admins and Superadmins
+        const userTab = document.getElementById('tab-users');
+        if (userTab) userTab.classList.remove('hidden');
     }
 
     window.toggleAdminModal = function (show) {
         if (show) {
             adminModal.classList.remove('hidden');
+            fetchDocuments();
+            if (userRole === 'admin' || userRole === 'superadmin') {
+                fetchUsers();
+            }
         } else {
             adminModal.classList.add('hidden');
         }
     };
 
+    // --- Document Management ---
+
+    // Admin Tab Switching
+    window.switchAdminTab = function (tabName) {
+        // 1. Hide all content
+        ['ingestion', 'documents', 'users'].forEach(t => {
+            const content = document.getElementById(`content-${t}`);
+            const btn = document.getElementById(`tab-${t}`);
+            if (content) content.classList.add('hidden');
+            if (btn) {
+                btn.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+                btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400');
+            }
+        });
+
+        // 2. Show selected
+        const activeContent = document.getElementById(`content-${tabName}`);
+        const activeBtn = document.getElementById(`tab-${tabName}`);
+
+        if (activeContent) activeContent.classList.remove('hidden');
+        if (activeBtn) {
+            activeBtn.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400');
+            activeBtn.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+        }
+
+        // Fetch Data on Tab Switch
+        if (tabName === 'users') {
+            fetchUsers();
+        } else if (tabName === 'documents') {
+            fetchDocuments();
+        }
+    }
+
     // Ingestion Logic
     const ingestForm = document.getElementById('ingestForm');
-    if (ingestForm) {
-        document.getElementById('ingestFile').addEventListener('change', (e) => {
-            if (e.target.files[0]) document.getElementById('ingestFileName').textContent = e.target.files[0].name;
+    const chunkSizeSlider = document.getElementById('chunkSize');
+    const overlapSlider = document.getElementById('overlap');
+    const ingestDropZone = document.getElementById('ingestDropZone');
+    const ingestFileInput = document.getElementById('ingestFile');
+    const ingestFileNameDisplay = document.getElementById('ingestFileName');
+
+    let selectedFiles = [];
+
+    function updateFileList() {
+        if (!ingestFileNameDisplay) return;
+        ingestFileNameDisplay.innerHTML = '';
+        if (selectedFiles.length === 0) {
+            ingestFileNameDisplay.textContent = '';
+            return;
+        }
+        selectedFiles.forEach((file, index) => {
+            const div = document.createElement('div');
+            div.className = "flex justify-between items-center text-xs bg-blue-50 dark:bg-blue-900/30 p-1 rounded px-2 mb-1";
+            div.innerHTML = `
+                <span class="truncate flex-1 text-left mr-2 min-w-0">${file.name}</span>
+                <button type="button" class="text-red-500 hover:text-red-700 shrink-0" onclick="removeFile(${index})" title="Remove">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                </button>
+            `;
+            ingestFileNameDisplay.appendChild(div);
         });
+        lucide.createIcons();
+    }
+
+    window.removeFile = function (index) {
+        selectedFiles.splice(index, 1);
+        updateFileList();
+        // Reset input so same file can be selected again if needed
+        if (ingestFileInput) ingestFileInput.value = '';
+    }
+
+    if (chunkSizeSlider && overlapSlider) { // Config Sliders
+        const chunkSizeVal = document.getElementById('chunkSizeVal');
+        const overlapVal = document.getElementById('overlapVal');
+        chunkSizeSlider.addEventListener('input', (e) => chunkSizeVal.textContent = e.target.value);
+        overlapSlider.addEventListener('input', (e) => overlapVal.textContent = e.target.value);
+    }
+
+    if (ingestForm) {
+        // Drag and Drop
+        if (ingestDropZone) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                ingestDropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                ingestDropZone.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                ingestDropZone.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight(e) {
+                ingestDropZone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+            }
+
+            function unhighlight(e) {
+                ingestDropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+            }
+
+            ingestDropZone.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            }
+        }
+
+        if (ingestFileInput) {
+            ingestFileInput.addEventListener('change', function (e) {
+                handleFiles(this.files);
+            });
+            // Stop click propagation from dropzone to input to avoid double dialog
+            ingestFileInput.addEventListener('click', (e) => e.stopPropagation());
+        }
+
+        function handleFiles(files) {
+            // Append new files to existing list
+            if (files.length > 0) {
+                selectedFiles = [...selectedFiles, ...Array.from(files)];
+                updateFileList();
+            }
+        }
 
         ingestForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const file = document.getElementById('ingestFile').files[0];
-            if (!file) return alert("Select a file");
 
-            const btn = e.target.querySelector('button');
+            if (selectedFiles.length === 0) return alert("Select at least one file");
+
+            const btn = e.target.querySelector('button[type="submit"]');
             const statusDiv = document.getElementById('ingestStatus');
             btn.disabled = true;
-            statusDiv.textContent = "Uploading & Ingesting...";
-            statusDiv.className = 'text-center text-sm font-medium'; // Reset class
+            statusDiv.innerHTML = '';
+            statusDiv.className = 'text-center text-sm font-medium';
 
-            const formData = new FormData();
-            formData.append('file', file);
+            let successCount = 0;
+            let errorCount = 0;
+            let totalChunks = 0;
+            const errors = [];
 
             try {
-                const res = await fetch('/api/ingest', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                    },
-                    body: formData
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Ingestion failed');
+                // To avoid blocking the UI, we'll iterate with a small delay if needed, 
+                // but standard await fetch is fine.
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    const progress = Math.round(((i) / selectedFiles.length) * 100);
 
-                statusDiv.textContent = `Success! ${data.chunks} chunks added to Base Knowledge.`;
-                statusDiv.classList.add('text-green-600');
+                    statusDiv.innerHTML = `
+                        <div class="mb-2 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+                            <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Progress: ${progress}%</div>
+                        <div class="animate-pulse">
+                            Processing file ${i + 1} of ${selectedFiles.length}: <span class="font-semibold text-blue-600">${file.name}</span>
+                        </div>
+                    `;
+
+                    const formData = new FormData();
+                    formData.append('files', file);
+                    if (chunkSizeSlider) formData.append('chunk_size', chunkSizeSlider.value);
+                    if (overlapSlider) formData.append('chunk_overlap', overlapSlider.value);
+
+                    try {
+                        const res = await fetch('/api/ingest', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+                            body: formData
+                        });
+                        const data = await res.json();
+
+                        if (!res.ok) throw new Error(data.detail || 'Ingestion failed');
+
+                        if (data.errors && data.errors.length > 0) {
+                            errorCount++;
+                            errors.push(...data.errors);
+                        } else {
+                            successCount++;
+                            totalChunks += data.total_chunks;
+                        }
+
+                    } catch (err) {
+                        errorCount++;
+                        errors.push(`${file.name}: ${err.message}`);
+                        console.error(`Failed to ingest ${file.name}`, err);
+                    }
+                }
+
+                // Final Status
+                statusDiv.innerHTML = '';
+                if (errorCount > 0) {
+                    statusDiv.textContent = `Completed with issues. Success: ${successCount}, Errors: ${errorCount}`;
+                    statusDiv.className = 'text-center text-sm font-medium text-orange-600';
+                    if (errors.length > 0) console.error("Ingestion Errors:", errors);
+                } else {
+                    statusDiv.textContent = `All Done! ${totalChunks} chunks added from ${successCount} files.`;
+                    statusDiv.className = 'text-center text-sm font-medium text-green-600';
+                }
+
+                selectedFiles = [];
+                updateFileList();
+                fetchDocuments();
+
             } catch (err) {
-                statusDiv.textContent = `Error: ${err.message}`;
-                statusDiv.classList.add('text-red-600');
+                statusDiv.textContent = `Critical Error: ${err.message}`;
+                statusDiv.className = 'text-center text-sm font-medium text-red-600';
             } finally {
                 btn.disabled = false;
             }
         });
     }
 
-    // Add Admin Logic
-    const addAdminForm = document.getElementById('addAdminForm');
-    if (addAdminForm) {
-        addAdminForm.addEventListener('submit', async (e) => {
+    const refreshDocsBtn = document.getElementById('refreshDocsBtn');
+    if (refreshDocsBtn) refreshDocsBtn.addEventListener('click', fetchDocuments);
+
+    async function fetchDocuments() {
+        try {
+            const res = await fetch('/api/documents', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            const data = await res.json();
+            renderDocuments(data.documents);
+        } catch (err) {
+            console.error("Failed to load documents", err);
+        }
+    }
+
+    function renderDocuments(docs) {
+        const tbody = document.getElementById('docTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        docs.forEach(doc => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${doc.id}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer" 
+                    onclick="viewChunks(${doc.id})">
+                    ${doc.filename}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    S: ${doc.chunk_size}, O: ${doc.chunk_overlap}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    ${new Date(doc.upload_timestamp).toLocaleDateString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button onclick="deleteDocument(${doc.id})" class="text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs transition-colors shadow-sm">
+                        <i data-lucide="trash-2" class="w-4 h-4 inline mr-1"></i>Delete
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        lucide.createIcons();
+    }
+
+    window.deleteDocument = async function (docId) {
+        if (!confirm("Are you sure you want to delete this document and all its chunks?")) return;
+        try {
+            const res = await fetch(`/api/documents/${docId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            if (res.ok) {
+                fetchDocuments();
+            } else {
+                alert("Failed to delete document");
+            }
+        } catch (e) {
+            alert("Error deleting document: " + e.message);
+        }
+    };
+
+    window.viewChunks = async function (docId) {
+        const modal = document.getElementById('chunkModal');
+        const container = document.getElementById('chunkContainer');
+        const title = document.getElementById('chunkModalTitle');
+
+        container.innerHTML = '<div class="text-center p-4">Loading chunks...</div>';
+        modal.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/api/documents/${docId}/chunks`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            const data = await res.json();
+
+            title.textContent = `Chunks: ${data.filename}`;
+            container.innerHTML = '';
+
+            if (data.chunks.length === 0) {
+                container.innerHTML = '<div class="text-center p-4 text-gray-500">No chunks found.</div>';
+                return;
+            }
+
+            data.chunks.forEach((chunk, idx) => {
+                const el = document.createElement('div');
+                el.className = "bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-mono whitespace-pre-wrap text-gray-700 dark:text-gray-300";
+                el.innerHTML = `
+                    <div class="text-xs text-blue-500 font-bold mb-2">Chunk #${idx + 1}</div>
+                    ${chunk.content}
+                `;
+                container.appendChild(el);
+            });
+        } catch (e) {
+            container.innerHTML = `<div class="text-red-500 p-4">Error loading chunks: ${e.message}</div>`;
+        }
+    };
+
+    window.closeChunkModal = function () {
+        document.getElementById('chunkModal').classList.add('hidden');
+    };
+
+    // --- User Management ---
+    const refreshUsersBtn = document.getElementById('refreshUsersBtn');
+    if (refreshUsersBtn) refreshUsersBtn.addEventListener('click', fetchUsers);
+
+    async function fetchUsers() {
+        try {
+            const res = await fetch('/api/users', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch users');
+            const data = await res.json();
+            renderUsers(data.users);
+        } catch (err) {
+            console.error(err);
+            const status = document.getElementById('userStatus');
+            if (status) status.textContent = "Failed to load users.";
+        }
+    }
+
+    // Add User Logic
+    const addUserFormContainer = document.getElementById('addUserFormContainer');
+    const addUserForm = document.getElementById('addUserForm');
+
+    window.openAddUserModal = function () {
+        if (addUserFormContainer) addUserFormContainer.classList.remove('hidden');
+    }
+
+    window.closeAddUserModal = function () {
+        if (addUserFormContainer) addUserFormContainer.classList.add('hidden');
+        if (addUserForm) addUserForm.reset();
+    }
+
+    if (addUserForm) {
+        addUserForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData();
-            formData.append('username', document.getElementById('newAdminUser').value);
-            formData.append('password', document.getElementById('newAdminPass').value);
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('newRole').value;
 
             try {
-                const res = await fetch('/api/auth/register-admin', {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('role', role);
+
+                const res = await fetch('/api/users', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                    },
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
                     body: formData
                 });
-                if (!res.ok) throw new Error('Failed to add admin');
 
-                const status = document.getElementById('adminStatus');
-                status.textContent = "Admin added successfully!";
-                status.className = "text-center text-sm font-medium text-green-600";
-                document.getElementById('newAdminUser').value = '';
-                document.getElementById('newAdminPass').value = '';
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to create user');
+
+                alert(`User ${data.username} created successfully!`);
+                closeAddUserModal();
+                fetchUsers(); // Refresh list
             } catch (err) {
-                const status = document.getElementById('adminStatus');
-                status.textContent = err.message;
-                status.className = "text-center text-sm font-medium text-red-600";
+                alert(err.message);
             }
         });
     }
 
+    function renderUsers(users) {
+        const tbody = document.getElementById('userTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        users.forEach(user => {
+            const tr = document.createElement('tr');
+            let actionsHtml = '';
+            const isSelf = user.username === currentUser;
+
+            if (!isSelf) {
+                if (userRole === 'superadmin') {
+                    if (user.role === 'user') {
+                        actionsHtml += `<button onclick="updateRole(${user.id}, 'admin')" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 mr-2">Make Admin</button>`;
+                    } else if (user.role === 'admin') {
+                        actionsHtml += `<button onclick="updateRole(${user.id}, 'user')" class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">Revoke Admin</button>`;
+                    }
+                } else if (userRole === 'admin') {
+                    if (user.role === 'user') {
+                        actionsHtml += `<button onclick="updateRole(${user.id}, 'admin')" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 mr-2">Make Admin</button>`;
+                    } else if (user.role === 'admin') {
+                        actionsHtml += `<button onclick="updateRole(${user.id}, 'user')" class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 mr-2">Revoke Admin</button>`;
+                    }
+                }
+            }
+
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${user.id}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${user.username}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${user.role === 'superadmin' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                    user.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'}">
+                        ${user.role}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${actionsHtml}
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        lucide.createIcons();
+    }
+
+    window.updateRole = async function (userId, newRole) {
+        if (!confirm(`Are you sure you want to change this user's role to ${newRole}?`)) return;
+
+        try {
+            const res = await fetch(`/api/users/${userId}/role`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ role: newRole })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Failed to update role');
+
+            fetchUsers();
+            const status = document.getElementById('userStatus');
+            if (status) {
+                status.textContent = `User ${data.username} updated to ${data.role}!`;
+                status.className = "text-center text-sm font-medium mt-4 text-green-600";
+                setTimeout(() => { status.textContent = ''; }, 3000);
+            }
+
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+
+    // --- User Profile & Logout ---
+    const currentUserDisplay = document.getElementById('currentUserDisplay');
+    const currentUserRole = document.getElementById('currentUserRole');
+    const userAvatarInitial = document.getElementById('userAvatarInitial');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (currentUser && currentUserDisplay) {
+        currentUserDisplay.textContent = currentUser;
+        userAvatarInitial.textContent = currentUser.charAt(0).toUpperCase();
+        if (currentUserRole && userRole) {
+            currentUserRole.textContent = userRole;
+        }
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            if (confirm("Sign out?")) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('username');
+                localStorage.removeItem('user_role');
+                // Clear user-specific session ID
+                if (currentUser) {
+                    localStorage.removeItem(`current_session_id_${currentUser}`);
+                }
+                window.location.href = 'index.html';
+            }
+        });
+    }
 
 });

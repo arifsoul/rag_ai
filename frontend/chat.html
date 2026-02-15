@@ -81,15 +81,39 @@
             </div>
 
             <!-- Sidebar Footer -->
-            <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-gray-500 dark:text-gray-400 font-medium">Theme</span>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 space-y-4">
+
+                <!-- User Profile -->
+                <div
+                    class="flex items-center justify-between p-2.5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700/50">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div
+                            class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-inner">
+                            <span id="userAvatarInitial">U</span>
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span id="currentUserDisplay"
+                                class="text-sm font-semibold text-gray-900 dark:text-white truncate">Username</span>
+                            <span id="currentUserRole"
+                                class="text-[10px] text-gray-500 dark:text-gray-400 truncate uppercase tracking-wider font-medium">User</span>
+                        </div>
+                    </div>
+                    <button id="logoutBtn"
+                        class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                        title="Logout">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Theme Toggle -->
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Appearance</span>
                     <button id="themeToggle"
                         class="p-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50">
                         <!-- Sun Icon (Visible in Light Mode) -->
-                        <i data-lucide="sun" class="w-5 h-5 text-amber-500 block dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 text-amber-500 block dark:hidden"></i>
                         <!-- Moon Icon (Visible in Dark Mode) -->
-                        <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+                        <i data-lucide="moon" class="w-4 h-4 text-blue-400 hidden dark:block"></i>
                     </button>
                 </div>
             </div>
@@ -269,7 +293,7 @@
 
             <!-- Modal Content -->
             <div
-                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto transform transition-all">
+                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-6xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto transform transition-all">
 
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Admin Dashboard</h2>
@@ -279,58 +303,223 @@
                     </button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Ingestion Card -->
-                    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <div class="flex items-center gap-2 mb-4">
-                            <i data-lucide="database" class="w-6 h-6 text-blue-600"></i>
-                            <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Base Knowledge</h3>
-                        </div>
-                        <p class="text-gray-500 dark:text-gray-400 mb-4 text-sm">Upload documents available to ALL
-                            users.</p>
+                <div class="space-y-8">
 
-                        <form id="ingestForm" class="space-y-4">
-                            <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                                onclick="document.getElementById('ingestFile').click()">
-                                <i data-lucide="upload-cloud" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
-                                <p class="text-gray-600 dark:text-gray-300">Click to upload doc</p>
-                                <input type="file" id="ingestFile" class="hidden" required>
-                                <p id="ingestFileName" class="text-sm font-medium text-blue-600 mt-2"></p>
-                            </div>
-                            <button type="submit"
-                                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                                Upload to Base Knowledge
+                    <!-- Navigation Tabs -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button onclick="switchAdminTab('ingestion')" id="tab-ingestion"
+                                class="border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Ingestion
                             </button>
-                            <div id="ingestStatus" class="text-center text-sm font-medium"></div>
-                        </form>
+                            <button onclick="switchAdminTab('documents')" id="tab-documents"
+                                class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Documents
+                            </button>
+                            <button onclick="switchAdminTab('users')" id="tab-users"
+                                class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors hidden">
+                                Users
+                            </button>
+                        </nav>
                     </div>
 
-                    <!-- Admin Management Card (Superadmin Only) -->
-                    <div id="adminManagement"
-                        class="hidden bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <div class="flex items-center gap-2 mb-4">
-                            <i data-lucide="users" class="w-6 h-6 text-purple-600"></i>
-                            <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Manage Admins</h3>
-                        </div>
-                        <p class="text-gray-500 dark:text-gray-400 mb-4 text-sm">Add new admins.</p>
+                    <!-- Tab Content: Ingestion -->
+                    <div id="content-ingestion" class="space-y-6">
+                        <!-- Ingestion Card -->
+                        <div
+                            class="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center gap-2 mb-4">
+                                <i data-lucide="database" class="w-6 h-6 text-blue-600"></i>
+                                <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Base Knowledge</h3>
+                            </div>
+                            <p class="text-gray-500 dark:text-gray-400 mb-4 text-sm">Upload documents available to ALL
+                                users.</p>
 
-                        <form id="addAdminForm" class="space-y-4">
-                            <input type="text" placeholder="New Admin Username" id="newAdminUser"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                                required>
-                            <input type="password" placeholder="Password" id="newAdminPass"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 border focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                                required>
-                            <button type="submit"
-                                class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition-colors">
-                                Add Admin
-                            </button>
-                            <div id="adminStatus" class="text-center text-sm font-medium"></div>
-                        </form>
+                            <form id="ingestForm" class="space-y-4">
+                                <div id="ingestDropZone"
+                                    class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                                    onclick="document.getElementById('ingestFile').click()">
+                                    <i data-lucide="upload-cloud" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                                    <p class="text-gray-600 dark:text-gray-300">Click or Drag files here (Multi-select
+                                        supported)</p>
+                                    <input type="file" id="ingestFile" class="hidden" required multiple>
+                                    <div id="ingestFileName" class="text-sm font-medium text-blue-600 mt-2 space-y-1">
+                                    </div>
+                                </div>
+
+                                <!-- Config Sliders -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label
+                                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chunk
+                                            Size: <span id="chunkSizeVal">1000</span></label>
+                                        <input type="range" id="chunkSize" min="100" max="2000" step="100" value="1000"
+                                            class="w-full accent-blue-600">
+                                    </div>
+                                    <div>
+                                        <label
+                                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Overlap:
+                                            <span id="overlapVal">200</span></label>
+                                        <input type="range" id="overlap" min="0" max="500" step="50" value="200"
+                                            class="w-full accent-blue-600">
+                                    </div>
+                                </div>
+
+                                <button type="submit"
+                                    class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                    Upload to Base Knowledge
+                                </button>
+                                <div id="ingestStatus" class="text-center text-sm font-medium"></div>
+                            </form>
+                        </div>
+
+                    </div>
+
+                    <!-- Tab Content: Documents -->
+                    <div id="content-documents" class="space-y-6 hidden">
+                        <!-- Document Management -->
+                        <div
+                            class="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center gap-2 mb-4 justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="file-text" class="w-6 h-6 text-green-600"></i>
+                                    <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Document Management
+                                    </h3>
+                                </div>
+                                <button id="refreshDocsBtn"
+                                    class="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full"
+                                    title="Refresh Documents">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                                </button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead class="bg-gray-100 dark:bg-gray-800">
+                                        <tr>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                ID</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Filename</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Config</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Date</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="docTableBody"
+                                        class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                        <!-- Docs injected via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Tab Content: Users -->
+                    <div id="content-users" class="space-y-6 hidden">
+                        <!-- User Management -->
+                        <div id="userManagement"
+                            class="hidden bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center gap-2 mb-4 justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="users" class="w-6 h-6 text-purple-600"></i>
+                                    <h3 class="text-xl font-semibold text-gray-800 dark:text-white">User Management</h3>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="openAddUserModal()"
+                                        class="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full"
+                                        title="Add User">
+                                        <i data-lucide="user-plus" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                                    </button>
+                                    <button id="refreshUsersBtn"
+                                        class="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full"
+                                        title="Refresh Users">
+                                        <i data-lucide="refresh-cw"
+                                            class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Add User Modal (Inline or Separate) -->
+                            <div id="addUserFormContainer"
+                                class="hidden mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                <h4 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Add New User
+                                </h4>
+                                <form id="addUserForm" class="space-y-3">
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input type="text" id="newUsername" placeholder="Username" required
+                                            class="p-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <input type="password" id="newPassword" placeholder="Password" required
+                                            class="p-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <select id="newRole"
+                                            class="p-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                            <option value="user">User</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" onclick="closeAddUserModal()"
+                                            class="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">Cancel</button>
+                                        <button type="submit"
+                                            class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Create
+                                            User</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead class="bg-gray-100 dark:bg-gray-800">
+                                        <tr>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                ID</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Username</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Role</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="userTableBody" </tbody>
+                                </table>
+                            </div>
+                            <div id="userStatus" class="text-center text-sm font-medium mt-4"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- Chunk Viewer Modal -->
+            <div id="chunkModal" class="fixed inset-0 z-[110] hidden">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeChunkModal()"></div>
+                <div
+                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-white" id="chunkModalTitle">Document Chunks
+                        </h3>
+                        <button onclick="closeChunkModal()"
+                            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
+                            <i data-lucide="x" class="w-6 h-6 text-gray-500 dark:text-gray-400"></i>
+                        </button>
+                    </div>
+                    <div id="chunkContainer" class="space-y-4">
+                        <!-- Chunks injected here -->
+                    </div>
+                </div>
+            </div>
 
 </body>
 
