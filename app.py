@@ -29,9 +29,6 @@ def open_browser(host, port):
 
 if __name__ == "__main__":
     # Ensure directories exist
-    os.makedirs("data", exist_ok=True)
-    os.makedirs("data", exist_ok=True)
-    os.makedirs("chroma_db", exist_ok=True)
     os.makedirs("databases", exist_ok=True)
 
     HOST = "0.0.0.0"

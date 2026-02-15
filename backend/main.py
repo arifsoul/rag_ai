@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from backend.models import ChatRequest
-from backend.database import engine, Base, get_db
+from backend.database import engine, Base, get_db, SessionLocal
 from backend.models_db import User
 from backend.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -35,6 +35,44 @@ import uuid
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Seed Superadmin
+    super_username = os.getenv("SUPER_USERNAME")
+    super_password = os.getenv("SUPER_PASSWORD")
+
+    if super_username and super_password:
+        # Get a new db session
+        db = SessionLocal()
+        try:
+            # Check if superadmin exists
+            existing_superadmin = (
+                db.query(User).filter(User.username == super_username).first()
+            )
+
+            hashed_pwd = get_password_hash(super_password)
+
+            if not existing_superadmin:
+                print(f"Seeding Superadmin: {super_username}")
+                new_user = User(
+                    username=super_username,
+                    hashed_password=hashed_pwd,
+                    role="superadmin",
+                )
+                db.add(new_user)
+            else:
+                # Force update password to ensure .env is source of truth
+                print(f"Updating Superadmin password for: {super_username}")
+                existing_superadmin.hashed_password = hashed_pwd
+
+            db.commit()
+        except Exception as e:
+            print(f"Error seeding superadmin: {e}")
+        finally:
+            db.close()
+
 
 # Session Middleware
 # In a real app, use a secure secret key from env
@@ -139,34 +177,50 @@ async def ingest_base_knowledge(
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """Transcribes audio using Groq Whisper."""
-    temp_file = f"temp_{uuid.uuid4()}_{file.filename}"
+    # Create a temporary file to store the upload
+    temp_filename = f"temp_{uuid.uuid4()}_{file.filename}"
     try:
-        with open(temp_file, "wb") as buffer:
+        # Save uploaded file to disk
+        with open(temp_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         from groq import Groq
 
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GROQ_API_KEY not found in environment variables",
+            )
 
-        with open(temp_file, "rb") as f:
+        client = Groq(api_key=api_key)
+
+        # Open the saved file and send to Groq
+        with open(temp_filename, "rb") as f:
+            # Groq expects (filename, file_object) or just file_object
+            # passing the file object directly is safer
             transcription = client.audio.transcriptions.create(
-                file=(temp_file, f.read()),
+                file=(temp_filename, f.read()),  # Read bytes
                 model="whisper-large-v3",
                 response_format="json",
-                language="id",  # Set default language to Indonesian or auto
+                language="id",  # Default to Indonesian
                 temperature=0.0,
             )
 
         return {"text": transcription.text}
     except Exception as e:
         print(f"Transcription error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
     finally:
-        if os.path.exists(temp_file):
+        # Clean up temp file
+        if os.path.exists(temp_filename):
             try:
-                os.remove(temp_file)
-            except:
-                pass
+                os.remove(temp_filename)
+            except Exception as cleanup_error:
+                print(f"Error cleaning up temp file {temp_filename}: {cleanup_error}")
 
 
 @app.get("/api/models")
@@ -286,6 +340,27 @@ async def register_admin(
 @app.get("/api/users/me")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return {"username": current_user.username, "role": current_user.role}
+
+
+@app.post("/api/auth/register")
+async def register_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Public registration for standard users.
+    """
+    existing_user = db.query(User).filter(User.username == username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+
+    hashed_pwd = get_password_hash(password)
+    # Default role is 'user'
+    new_user = User(username=username, hashed_password=hashed_pwd, role="user")
+    db.add(new_user)
+    db.commit()
+    return {"username": new_user.username, "role": new_user.role}
 
 
 # Mount frontend static files

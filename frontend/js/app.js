@@ -130,7 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Recording stopped. Total chunks:', audioChunks.length);
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 console.log('Audio blob size:', audioBlob.size, 'bytes');
-                // Convert to file
+
+                if (audioBlob.size === 0) {
+                    console.error("Recorded audio is empty");
+                    alert("Recording failed: Audio is empty. Please check your microphone.");
+                    return;
+                }
+
+                // Convert to file with explicit name and type
                 const file = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
                 await transcribeAudio(file);
             };
@@ -145,37 +152,21 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Recording started successfully');
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            console.error('Error name:', err.name);
-            console.error('Error message:', err.message);
 
             let errorMessage = 'Microphone access failed:\n\n';
 
             if (err.name === 'NotReadableError') {
-                errorMessage += '❌ Microphone is already in use by another application.\n\n';
-                errorMessage += 'Solutions:\n';
-                errorMessage += '1. Close other applications using the microphone (Zoom, Teams, Discord, etc.)\n';
-                errorMessage += '2. Close other browser tabs with microphone access\n';
-                errorMessage += '3. Restart your browser\n';
-                errorMessage += '4. Try unplugging and replugging your microphone';
+                errorMessage += '❌ Microphone is not readable. Possible causes:\n' +
+                    '1. Another application is exclusively using the microphone.\n' +
+                    '2. Windows Privacy Settings blocked desktop apps.\n' +
+                    '3. Hardware issue (unplugged or muted).\n\n' +
+                    'Try checking: Settings > Privacy > Microphone > "Allow desktop apps to access your microphone".';
             } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                errorMessage += '❌ Microphone permission denied.\n\n';
-                errorMessage += 'Solutions:\n';
-                errorMessage += '1. Click the lock icon in the address bar\n';
-                errorMessage += '2. Allow microphone access for this site\n';
-                errorMessage += '3. Refresh the page and try again';
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                errorMessage += '❌ No microphone found.\n\n';
-                errorMessage += 'Solutions:\n';
-                errorMessage += '1. Check if your microphone is plugged in\n';
-                errorMessage += '2. Check Windows Sound settings\n';
-                errorMessage += '3. Try a different microphone';
+                errorMessage += '❌ Microphone permission denied. Please allow access in browser settings.\n';
+            } else if (err.name === 'NotFoundError') {
+                errorMessage += '❌ No microphone found. Please connect a microphone.\n';
             } else {
-                errorMessage += `❌ Error: ${err.name}\n`;
-                errorMessage += `Message: ${err.message}\n\n`;
-                errorMessage += 'Try:\n';
-                errorMessage += '1. Restart your browser\n';
-                errorMessage += '2. Check browser permissions\n';
-                errorMessage += '3. Use a different browser (Chrome/Edge recommended)';
+                errorMessage += `❌ Error: ${err.message}\n`;
             }
 
             alert(errorMessage);
@@ -769,4 +760,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial toggle check
     toggleInputButtons();
+    // --- Admin Dashboard Logic ---
+    const adminModal = document.getElementById('adminModal');
+    const adminModalBtn = document.getElementById('adminModalBtn');
+    const userRole = localStorage.getItem('user_role');
+
+    // Show Admin Button if authorized
+    if (userRole === 'admin' || userRole === 'superadmin') {
+        if (adminModalBtn) {
+            adminModalBtn.classList.remove('hidden');
+            adminModalBtn.addEventListener('click', () => toggleAdminModal(true));
+        }
+
+        // Show Superadmin specific section
+        if (userRole === 'superadmin') {
+            const adminMgmt = document.getElementById('adminManagement');
+            if (adminMgmt) adminMgmt.classList.remove('hidden');
+        }
+    }
+
+    window.toggleAdminModal = function (show) {
+        if (show) {
+            adminModal.classList.remove('hidden');
+        } else {
+            adminModal.classList.add('hidden');
+        }
+    };
+
+    // Ingestion Logic
+    const ingestForm = document.getElementById('ingestForm');
+    if (ingestForm) {
+        document.getElementById('ingestFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) document.getElementById('ingestFileName').textContent = e.target.files[0].name;
+        });
+
+        ingestForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('ingestFile').files[0];
+            if (!file) return alert("Select a file");
+
+            const btn = e.target.querySelector('button');
+            const statusDiv = document.getElementById('ingestStatus');
+            btn.disabled = true;
+            statusDiv.textContent = "Uploading & Ingesting...";
+            statusDiv.className = 'text-center text-sm font-medium'; // Reset class
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/ingest', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Ingestion failed');
+
+                statusDiv.textContent = `Success! ${data.chunks} chunks added to Base Knowledge.`;
+                statusDiv.classList.add('text-green-600');
+            } catch (err) {
+                statusDiv.textContent = `Error: ${err.message}`;
+                statusDiv.classList.add('text-red-600');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+
+    // Add Admin Logic
+    const addAdminForm = document.getElementById('addAdminForm');
+    if (addAdminForm) {
+        addAdminForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('newAdminUser').value);
+            formData.append('password', document.getElementById('newAdminPass').value);
+
+            try {
+                const res = await fetch('/api/auth/register-admin', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: formData
+                });
+                if (!res.ok) throw new Error('Failed to add admin');
+
+                const status = document.getElementById('adminStatus');
+                status.textContent = "Admin added successfully!";
+                status.className = "text-center text-sm font-medium text-green-600";
+                document.getElementById('newAdminUser').value = '';
+                document.getElementById('newAdminPass').value = '';
+            } catch (err) {
+                const status = document.getElementById('adminStatus');
+                status.textContent = err.message;
+                status.className = "text-center text-sm font-medium text-red-600";
+            }
+        });
+    }
+
+
 });
