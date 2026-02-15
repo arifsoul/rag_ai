@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG AI Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-sm p-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">Admin Dashboard</h1>
+            <div class="flex gap-4 items-center">
+                <span id="userInfo" class="text-sm text-gray-600"></span>
+                <button id="logoutBtn" class="text-red-500 hover:text-red-700 text-sm font-medium">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-8">
+
+        <!-- Auth Section (if not logged in) -->
+        <div id="authSection" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="username"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        required>
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">Login</button>
+            </form>
+            <div id="registerInfo" class="mt-4 text-center text-sm text-gray-500 hidden">
+                First time? Use <button id="showRegisterBtn" class="text-blue-600 hover:underline">Register
+                    Superadmin</button>
+            </div>
+            <!-- Register Form (Hidden by default) -->
+            <form id="registerForm" class="space-y-4 hidden mt-4 pt-4 border-t">
+                <h3 class="text-lg font-semibold text-center">Register Superadmin</h3>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="regUsername"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="regPassword"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                </div>
+                <button type="submit"
+                    class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Register</button>
+            </form>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- Ingestion Card -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="flex items-center gap-2 mb-4">
+                    <i data-lucide="database" class="w-6 h-6 text-blue-600"></i>
+                    <h2 class="text-xl font-semibold">Base Knowledge Ingestion</h2>
+                </div>
+                <p class="text-gray-500 mb-4 text-sm">Upload documents that will be available to ALL users (Base
+                    Knowledge).</p>
+
+                <form id="ingestForm" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer"
+                        onclick="document.getElementById('ingestFile').click()">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                        <p class="text-gray-600">Click to upload doc</p>
+                        <input type="file" id="ingestFile" class="hidden" required>
+                        <p id="fileName" class="text-sm font-medium text-blue-600 mt-2"></p>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50">Upload
+                        to Base Knowledge</button>
+                    <div id="ingestStatus" class="text-center text-sm font-medium"></div>
+                </form>
+            </div>
+
+            <!-- Admin Management Card (Superadmin Only) -->
+            <div id="adminManagement" class="bg-white p-6 rounded-xl shadow-md hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <i data-lucide="users" class="w-6 h-6 text-purple-600"></i>
+                    <h2 class="text-xl font-semibold">Admin Management</h2>
+                </div>
+                <p class="text-gray-500 mb-4 text-sm">Add new admins who can manage base knowledge.</p>
+
+                <form id="addAdminForm" class="space-y-4">
+                    <div>
+                        <input type="text" placeholder="New Admin Username" id="newAdminUser"
+                            class="w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                    </div>
+                    <div>
+                        <input type="password" placeholder="Password" id="newAdminPass"
+                            class="w-full rounded-md border-gray-300 shadow-sm p-2 border" required>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700">Add
+                        Admin</button>
+                    <div id="adminStatus" class="text-center text-sm font-medium"></div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- Auth Logic ---
+        const token = localStorage.getItem('access_token');
+        const role = localStorage.getItem('user_role');
+
+        if (token) {
+            showDashboard();
+        } else {
+            // Check if we should show register option (mock check, real one would query API)
+            document.getElementById('registerInfo').classList.remove('hidden');
+        }
+
+        document.getElementById('showRegisterBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('registerForm').classList.toggle('hidden');
+        });
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+
+            try {
+                const res = await fetch('/api/auth/token', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!res.ok) throw new Error('Login failed');
+                const data = await res.json();
+
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('user_role', data.role); // In real app, verify from token payload
+                localStorage.setItem('username', document.getElementById('username').value);
+
+                showDashboard();
+            } catch (err) {
+                alert(err.message);
+            }
+        });
+
+        // Register Superadmin
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('regUsername').value);
+            formData.append('password', document.getElementById('regPassword').value);
+
+            try {
+                const res = await fetch('/api/auth/register-superadmin', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Registration failed');
+
+                alert('Superadmin created! Please login.');
+                document.getElementById('registerForm').classList.add('hidden');
+            } catch (err) {
+                alert(err.message);
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('username');
+            location.reload();
+        });
+
+        function showDashboard() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+            document.getElementById('userInfo').textContent = `Logged in as ${localStorage.getItem('username')} (${localStorage.getItem('user_role')})`;
+
+            if (localStorage.getItem('user_role') === 'superadmin') {
+                document.getElementById('adminManagement').classList.remove('hidden');
+            }
+        }
+
+        // --- Ingestion Logic ---
+        document.getElementById('ingestFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) document.getElementById('fileName').textContent = e.target.files[0].name;
+        });
+
+        document.getElementById('ingestForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('ingestFile').files[0];
+            if (!file) return alert("Select a file");
+
+            const btn = e.target.querySelector('button');
+            const statusDiv = document.getElementById('ingestStatus');
+            btn.disabled = true;
+            statusDiv.textContent = "Uploading & Ingesting...";
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/ingest', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Ingestion failed');
+
+                statusDiv.textContent = `Success! ${data.chunks} chunks added to Base Knowledge.`;
+                statusDiv.classList.add('text-green-600');
+            } catch (err) {
+                statusDiv.textContent = `Error: ${err.message}`;
+                statusDiv.classList.add('text-red-600');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // --- Add Admin Logic ---
+        document.getElementById('addAdminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('newAdminUser').value);
+            formData.append('password', document.getElementById('newAdminPass').value);
+
+            try {
+                const res = await fetch('/api/auth/register-admin', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: formData
+                });
+                if (!res.ok) throw new Error('Failed to add admin');
+
+                document.getElementById('adminStatus').textContent = "Admin added successfully!";
+                document.getElementById('newAdminUser').value = '';
+                document.getElementById('newAdminPass').value = '';
+            } catch (err) {
+                document.getElementById('adminStatus').textContent = err.message;
+            }
+        });
+    </script>
+</body>
+
+</html>

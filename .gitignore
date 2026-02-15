@@ -1,0 +1,5 @@
+databases
+.venv
+.env
+.history
+__pycache__

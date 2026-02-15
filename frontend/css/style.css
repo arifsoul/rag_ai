@@ -1,0 +1,412 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+    /* Light Mode Variables */
+    --bg-gradient-1: #e0f2fe;
+    /* light sky */
+    --bg-gradient-2: #f0f9ff;
+    /* lighter sky */
+    --bg-gradient-3: #ffffff;
+    /* white */
+
+    --glass-bg: rgba(255, 255, 255, 0.65);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+    --glass-blur: 16px;
+
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --accent-color: #0ea5e9;
+    /* Sky 500 */
+    --accent-hover: #0284c7;
+    /* Sky 600 */
+
+    --msg-user-bg: #0ea5e9;
+    --msg-user-text: #ffffff;
+    --msg-ai-bg: rgba(255, 255, 255, 0.8);
+    --msg-ai-text: #1e293b;
+}
+
+.dark {
+    /* Dark Mode Variables */
+    --bg-gradient-1: #0f172a;
+    /* Slate 900 */
+    --bg-gradient-2: #1e293b;
+    /* Slate 800 */
+    --bg-gradient-3: #020617;
+    /* Slate 950 */
+
+    --glass-bg: rgba(30, 41, 59, 0.65);
+    /* Slate 800 with opacity */
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+
+    --msg-user-bg: #38bdf8;
+    /* Sky 400 */
+    --msg-user-text: #0f172a;
+    --msg-ai-bg: rgba(30, 41, 59, 0.8);
+    --msg-ai-text: #f1f5f9;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background: radial-gradient(circle at top left, var(--bg-gradient-1), transparent 40%),
+        radial-gradient(circle at bottom right, var(--bg-gradient-2), transparent 40%),
+        var(--bg-gradient-3);
+    background-attachment: fixed;
+    background-size: cover;
+    color: var(--text-primary);
+    transition: background 0.5s ease, color 0.3s ease;
+    min-height: 100vh;
+    overflow: hidden;
+    /* Prevent body scroll, handle in main */
+}
+
+::selection {
+    background-color: var(--accent-color);
+    color: #ffffff;
+}
+
+.dark ::selection {
+    background-color: var(--accent-hover);
+}
+
+/* Glassmorphism Utilities */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+.glass-heavy {
+    background: var(--glass-bg);
+    /* Use same or slightly more opaque if needed */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.5);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.8);
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+/* Message Styles */
+.user-msg {
+    background-color: var(--msg-user-bg);
+    color: var(--msg-user-text);
+    border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+    /* Pointy bottom-right for user? No, top-right usually */
+    border-radius: 1.25rem 0.25rem 1.25rem 1.25rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+
+.ai-msg {
+    color: var(--msg-ai-text);
+    padding-left: 0;
+    /* Remove bubble styling */
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    animation: fadeIn 0.3s ease-out forwards;
+    width: 100%;
+}
+
+/* Markdown Typography for AI Messages */
+.ai-msg h1,
+.ai-msg h2,
+.ai-msg h3,
+.ai-msg h4,
+.ai-msg h5,
+.ai-msg h6 {
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.3;
+}
+
+.ai-msg h1 {
+    font-size: 1.5rem;
+}
+
+.ai-msg h2 {
+    font-size: 1.25rem;
+}
+
+.ai-msg h3 {
+    font-size: 1.1rem;
+}
+
+.ai-msg h1:first-child,
+.ai-msg h2:first-child,
+.ai-msg h3:first-child {
+    margin-top: 0;
+}
+
+.ai-msg p {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.ai-msg p:last-child {
+    margin-bottom: 0;
+}
+
+.ai-msg ul,
+.ai-msg ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.ai-msg ul {
+    list-style-type: disc;
+}
+
+.ai-msg ol {
+    list-style-type: decimal;
+}
+
+.ai-msg li {
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+
+.ai-msg code {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9em;
+    background-color: rgba(100, 116, 139, 0.15);
+    /* Slate 500/15 */
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.3rem;
+}
+
+.dark .ai-msg code {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ai-msg pre {
+    background-color: #1e293b;
+    /* Slate 800 */
+    color: #f8fafc;
+    /* Slate 50 */
+    padding: 1rem;
+    border-radius: 0.75rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .ai-msg pre {
+    background-color: #020617;
+    /* Slate 950 */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.ai-msg pre code {
+    background-color: transparent;
+    padding: 0;
+    color: inherit;
+    font-size: 0.9rem;
+}
+
+.ai-msg blockquote {
+    border-left: 4px solid var(--accent-color);
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-bottom: 1rem;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.ai-msg strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ai-msg a {
+    color: var(--accent-color);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.ai-msg table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+}
+
+.ai-msg th,
+.ai-msg td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--glass-border);
+    text-align: left;
+}
+
+.ai-msg th {
+    font-weight: 600;
+    background-color: rgba(100, 100, 100, 0.05);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Sidebar Transitions */
+#historySidebar {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Main Content Transition */
+main {
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Toggle Button "Bookmark" Style */
+#desktopSidebarToggle,
+#sidebarToggle {
+    box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1), 2px 0 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dark #desktopSidebarToggle,
+.dark #sidebarToggle {
+    box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.3), 2px 0 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Floating Input Area */
+.floating-input-area {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 800px;
+    z-index: 50;
+    border-radius: 1.5rem;
+    padding: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-input-area:focus-within {
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.3);
+    transform: translateX(-50%) translateY(-2px);
+}
+
+/* Typography & Transitions */
+* {
+    transition-property: background-color, border-color, color, fill, stroke, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+}
+
+/* Typing Indicator */
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+    animation: typing 1.4s infinite ease-in-out both;
+    margin: 0 2px;
+}
+
+.typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typing {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Delete Confirmation Modal */
+#delete-confirmation-modal {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.dark #delete-confirmation-modal {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+}
+
+/* Arrow positioning - dynamic classes might be better but let's have defaults */
+
+/* Visualizer Animation */
+@keyframes wave {
+
+    0%,
+    100% {
+        height: 0.5rem;
+    }
+
+    50% {
+        height: 2rem;
+    }
+}
+
+.animate-wave {
+    animation: wave 1s ease-in-out infinite;
+}
+
+/* Delay classes handled by Tailwind arbitrary values or style attributes in HTML, 
+   but adding here if needed for consistency or cleaner HTML */
+.animation-delay-100 {
+    animation-delay: 0.1s;
+}
+
+.animation-delay-200 {
+    animation-delay: 0.2s;
+}
+
+.animation-delay-300 {
+    animation-delay: 0.3s;
+}
+
+.animation-delay-400 {
+    animation-delay: 0.4s;
+}

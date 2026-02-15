@@ -1,0 +1,24 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+langchain
+langchain-groq
+langchain-huggingface
+langchain-chroma
+langgraph
+chromadb
+beautifulsoup4
+pypdf
+jinja2
+itsdangerous
+langchain-community
+sentence-transformers
+groq
+# For session management if needed, but SessionMiddleware is built-in to starlette (part of fastapi)
+docx2txt
+langgraph-checkpoint-sqlite
+sqlalchemy
+python-jose[cryptography]
+passlib[bcrypt]
+aiosqlite
