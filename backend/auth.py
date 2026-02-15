@@ -17,12 +17,24 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_change_me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
 # --- Helpers ---
 def verify_password(plain_password, hashed_password):
+    # Check for legacy bcrypt hashes manually to avoid passlib compatibility issues with bcrypt 5.0+
+    if hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
+        try:
+            return bcrypt.checkpw(
+                plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+            )
+        except Exception as e:
+            print(f"Bcrypt verification error: {e}")
+            return False
+
     return pwd_context.verify(plain_password, hashed_password)
 
 

@@ -20,6 +20,7 @@ docx2txt
 langgraph-checkpoint-sqlite
 sqlalchemy
 python-jose[cryptography]
-passlib[bcrypt]
-bcrypt==3.2.0
+passlib
+bcrypt
 aiosqlite
+argon2-cffi
